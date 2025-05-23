@@ -96,6 +96,16 @@ def compute_gradient(x, y, w, b, lambda_):
     
     return dj_dw, dj_db
 
+def avaliation(cost_funcion, num_iters, i, x, y, w, b, lambda_):
+    cost = cost_funcion(x, y, w, b, lambda_)
+    if i == num_iters - 1:
+        print(f'Final cost: {cost:.2f}') 
+    
+    if i<100000:
+        return cost
+    else:
+        return None
+
 def gradient_descent(x, y, w_in, b_in, gradient_func, cost_func, alpha, lambda_, num_iters):
     '''
     Função que treina o modelo para encontrar os melhores valores para os parâmetros 'w' e 'b'
@@ -117,7 +127,7 @@ def gradient_descent(x, y, w_in, b_in, gradient_func, cost_func, alpha, lambda_,
     print("Training the Model. Please wait!")
 
     # J_history = []
-    # i_prints = [100, 500, 1000, 1200, 1400, 1600, 1800, 2000, 2200, 2400, 2600, 2700, 2800, 2900, 2999]
+    # i_prints = [100, 500, 1000, 1200, 1400, 1600, 1800, 2000, 2200, 2400, 2600, 2700, 2800, 2900]
 
     w = w_in
     b = b_in
@@ -130,10 +140,8 @@ def gradient_descent(x, y, w_in, b_in, gradient_func, cost_func, alpha, lambda_,
 
 
         # --- Linhas de código para teste de performance ---
-        # if i<100000:
-        #     cost = cost_func(x, y, w, b, lambda_)
-        #     J_history.append(cost)
-        
+        # J_history.append(avaliation(cost_func, num_iters, i, x, y, w, b, lambda_))
+
         # if i in i_prints:
         #     print(f"Iteração {i}: Custo: {float(J_history[-1]):8.2f}")
         # --------------------------------------------------
@@ -189,16 +197,7 @@ def main():
 
     w, b = training_model(df)
     
-    # --- Linhas de código para teste de performance ---
-    # for i in range(20):
-    #     print(f"Previsão: {np.dot(x_train[i], w_final) + b_final:.2f}, Target: {y_train[i]:.2f}")
-    
-    # df.drop(columns=['mpg', 'km_l'], inplace=True)
-    # for j in range(len(w_final)):
-    #     print(f"{df.columns[j]}: w_final: {w_final[j]}")
-    # --------------------------------------------------
-    
-    print('=============== CarFuel Regression Model ===============')
+    print('=============== CarFuel Regression Model (Without Sklearn) ===============')
     while True:
         x_prev = {'cylinders': 0,
                 'displacement': 0,
