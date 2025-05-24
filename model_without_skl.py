@@ -1,15 +1,21 @@
 import pandas as pd
 import numpy as np
 
-def processing_data(df):
+def processing_data():
+    columns = ['mpg', 'cylinders', 'displacement', 'horsepower', 'weight', 'acceleration', 'model_year', 'origin', 'car_name'] # Definindo nomes das features
+    df = pd.read_csv('data/auto-mpg.data', sep=r'\s+', names=columns) # Importando os dados de treinamento em um DataFrame
+    
     df['origin'] = df['origin'].map({1: 'USA', 2:'Europe', 3:'Japan'}) # Alterando valores da coluna 'Origem'
     df = pd.get_dummies(df, columns=['origin'], dtype='int64') # Transformando valores da coluna 'Origem' em variáveis indicadoras
 
     df.drop(columns=['car_name', 'acceleration'], inplace=True) # Removendo colunas não utilizáveis
 
-    df['weight_cyl'] = df['weight'] * df['cylinders'] # Adicionando novas features
     df['sqr_horsepower'] = df['horsepower']**2 # Adicionando novas features
+    df['cube_horsepower'] = df['horsepower']**3 # Adicionando novas features
     df['sqr_weight'] = df['weight']**2 # Adicionando novas features
+    df['cube_weight'] = df['weight']**3 # Adicionando novas features
+    df['prod_sqr_horsepower'] = df['horsepower'] * df['sqr_horsepower'] # Adicionando novas feature
+    df['prod_sqr_weight'] = df['weight'] * df['sqr_weight'] # Adicionando novas feature
     return df
 
 def conversion_data(df):
@@ -28,17 +34,19 @@ def zscore_normalization(x):
         x (ndarray (m, n)): Features não normalizadas
     Retornos:
         x_norm (ndarray (m, n)): Features normalizadas
+        mu (ndarray (n, ))     : Média das features para ser utilizada em normalizações futuras
+        sigma (ndarray (n, ))  : Desvio padrão das features para ser utilizado em normalizações futuras
     '''
 
     mu = np.mean(x, axis=0) # Média de cada feature
     sigma = np.std(x, axis=0) # Desvio padrão de cada feature
 
-    x_norm = (x - mu) / sigma
-    return x_norm
+    x_norm = (x - mu) / sigma # Normalização das features
+    return x_norm, mu, sigma
 
 def compute_cost(x, y, w, b, lambda_):
     '''
-    Função para calcular o custo
+    Função para calcular o custo (Mean Squarred Error [MSE])
     Args:
         X (ndarray (m, n)): Dados de treinamento, m exemplos com n features
         Y (ndarray  (m, )): Targets
@@ -92,16 +100,26 @@ def compute_gradient(x, y, w, b, lambda_):
     dj_db = dj_db / m
 
     for j in range(n): # Adição do termo de regularização
-        dj_dw[j] = dj_dw[j] + (lambda_ / m) * w[j]
+        dj_dw[j] = dj_dw[j] + (lambda_ / m) * w[j] 
     
     return dj_dw, dj_db
 
-def avaliation(cost_funcion, num_iters, i, x, y, w, b, lambda_):
-    cost = cost_funcion(x, y, w, b, lambda_)
-    if i == num_iters - 1:
-        print(f'Final cost: {cost:.2f}') 
+def save_cost(cost_funcion, i, x, y, w, b, lambda_):
+    '''
+    Função que retorna o custo e é chamada a cada iteração do algoritmo de descida de gradiente
+
+    Args:
+        cost_func            : Função que calcula o custo (Mean Squarred Error [MSE])
+        i (int)              : Iteração atual
+        x, y, w, b, lambda_  : Parâmetros que fazem a função de custo funcionar
+
+    Retorno:
+        cost (float) : Custo da iteração atual
+    '''
+
+    cost = cost_funcion(x, y, w, b, lambda_) # A variável custo recebe o valor do custo da iteração atual
     
-    if i<100000:
+    if i<100000: # A função retorna o custo caso o número de iterações não ultrapasse o limite definido
         return cost
     else:
         return None
@@ -126,28 +144,21 @@ def gradient_descent(x, y, w_in, b_in, gradient_func, cost_func, alpha, lambda_,
     '''
     print("Training the Model. Please wait!")
 
-    # J_history = []
-    # i_prints = [100, 500, 1000, 1200, 1400, 1600, 1800, 2000, 2200, 2400, 2600, 2700, 2800, 2900]
+    J_history = {} # Dicionário que guarda o histórico do valor do custo (MSE)
 
-    w = w_in
-    b = b_in
+    w = w_in # Inicialização dos parâmetros W (Coeficientes)
+    b = b_in # Inicialização do parâmetro b (Intercepto)
 
-    for i in range(num_iters):
+    for i in range(num_iters): # Representação em código do algoritmo de descida de gradiente
         dj_dw, dj_db = gradient_func(x, y, w, b, lambda_)
 
         w = w - alpha * dj_dw
         b = b - alpha * dj_db
 
-
-        # --- Linhas de código para teste de performance ---
-        # J_history.append(avaliation(cost_func, num_iters, i, x, y, w, b, lambda_))
-
-        # if i in i_prints:
-        #     print(f"Iteração {i}: Custo: {float(J_history[-1]):8.2f}")
-        # --------------------------------------------------
+        J_history[i + 1] = save_cost(cost_func, i, x, y, w, b, lambda_) # O valor do custo é registrado
     
     print("Training completed!\n")
-    return w, b
+    return J_history, w, b
 
 def prediction(x, w, b):
     '''
@@ -161,10 +172,10 @@ def prediction(x, w, b):
     Retorno:
         predict (float): Valor previsto
     '''
-    predict = np.dot(x, w) + b
+    predict = np.dot(x, w) + b # Representação em código do cálculo da regressão linear
     return predict
 
-def training_model(df):
+def training_model():
     '''
     Função que treina o modelo com os dados fornecidos
     Args:
@@ -174,32 +185,32 @@ def training_model(df):
         w_final (ndarray (n,)): Parâmetro 'w' após treinamento
         b_final (scalar)      : Parâmetro 'b' após treinamento
     '''
-    df = processing_data(df) # Tratando os dados para serem utilizados no modelo
+    df = processing_data() # Puxando todos os dados já tratados e prontos para treinamento
 
-    y_train, x_train = conversion_data(df)
-    x_train = zscore_normalization(x_train)
+    y_train, x_train = conversion_data(df) # Separando os dados em features e targets
+    x_train, mu, sigma = zscore_normalization(x_train) # Normalizando as features e guardando os valores da média e do desvio padrão
 
-    w_init = np.zeros(x_train.shape[1])
-    b_init = 0
+    w_init = np.zeros(x_train.shape[1]) # Inicialização dos parâmetros W (Coeficientes)
+    b_init = 0 # Inicialização dos parâmetros b (Intercepto)
 
-    iterations = 2000
-    alpha = 0.1
-    lambda_ = 0.7
+    J_history = {} # Dicionário que vai receber o registro do custo (MSE)
+    iterations = 2000 # Número de iterações que o algoritmo de descida de gradiente vai realizar
+    alpha = 0.03 # Taxa de aprendizado
+    lambda_ = 0.5 # Taxa de regularização
 
-    w_final, b_final = gradient_descent(x_train, y_train, w_init, b_init, compute_gradient, compute_cost, alpha, lambda_, iterations)
-    return w_final, b_final
+    J_history, w_final, b_final = gradient_descent(x_train, y_train, w_init, b_init, compute_gradient, compute_cost, alpha, lambda_, iterations)
+    return J_history, w_final, b_final, mu, sigma
 
 
 def main():
-
-    columns = ['mpg', 'cylinders', 'displacement', 'horsepower', 'weight', 'acceleration', 'model_year', 'origin', 'car_name'] # Definindo nomes das features
-    df = pd.read_csv('data/auto-mpg.data', sep='\s+', names=columns) # Importando os dados de treinamento em um DataFrame
-
-    w, b = training_model(df)
+    J_history = {} # Dicionário que vai receber o registro do custo (MSE)
+    J_history, w, b, mu, sigma = training_model() # Registro do custo, coeficientes, intercepto, média das features e desvio padrão das features recebem seus valores finais
     
+    # Aplicação
     print('=============== CarFuel Regression Model (Without Sklearn) ===============')
     while True:
-        x_prev = {'cylinders': 0,
+        x_prev = {
+                'cylinders': 0,
                 'displacement': 0,
                 'horsepower': 0,
                 'weight': 0,
@@ -207,18 +218,23 @@ def main():
                 'origin_Europe': 0,
                 'origin_Japan': 0,
                 'origin_USA': 0,
-                'weight_cyl': 0,
                 'sqr_horsepower': 0,
-                'sqr_weight': 0}
+                'cube_horsepower': 0,
+                'sqr_weight': 0,
+                'cube_weight': 0,
+                'prod_sqr_horsepower': 0,
+                'prod_sqr_weight': 0
+                }
 
         menu = '''
         [n]: Make a new predict
+        [a]: Evaluate Model
         [q]: Quit
         => '''
         action = input(menu)
 
         if action == 'n':
-            print('\n-------------------- NewPredict --------------------')
+            print('\n-------------------- NewPredict --------------------') # Preenchimento de um novo conjunto de features para previsão
             x_prev['cylinders'] = int(input("Cylinders: "))
             x_prev['displacement'] = float(input("Displacement: "))
             x_prev['horsepower'] = float(input("Horsepower: "))
@@ -233,17 +249,30 @@ def main():
             elif origin == 3:
                 x_prev['origin_Japan'] = 1
 
-            x_prev['weight_cyl'] = x_prev['weight'] * x_prev['cylinders']
             x_prev['sqr_horsepower'] = x_prev['horsepower']**2
+            x_prev['cube_horsepower'] = x_prev['horsepower']**3
             x_prev['sqr_weight'] = x_prev['weight']**2
+            x_prev['cube_weight'] = x_prev['weight']**3
+            x_prev['prod_sqr_horsepower'] = x_prev['horsepower'] * x_prev['sqr_horsepower']
+            x_prev['prod_sqr_weight'] = x_prev['weight'] * x_prev['sqr_weight']
 
             x = np.array(list(x_prev.values()))
-            x = zscore_normalization(x)
+            x = (x - mu) / sigma # Normalizando as features com os mesmos valores da média e desvio padrão usados no treinamento
 
             print(f"\nO consumo previsto para este carro é em torno de {prediction(x, w, b):.2f} Km/L\n")
             print('--------------------------------------------------')
+        elif action == 'a':
+            print('\n--------------- Assessment Data ---------------')
+            j_prints = [1, 50, 100, 300, 500, 700, 900, 1100, 1300, 1500, 1700, 2000]
+            for i in range(len(J_history)): # Exibição do valor do custo nas iterações de n° acima
+                index = i + 1
+                if (index) in j_prints:
+                    print(f'Iteration {index}: Cost(MSE): {J_history[index]:.2f}')
+            print('\nCoefficients(W):', w) # Exibição dos valores dos coeficientes (w)
+            print(f'Intercept(b): {b}\n') # Exibição do valor do intercepto (b)
+            print('-----------------------------------------------')
         elif action == 'q':
-            print('\n=============== Session finished ===============')
+            print('\n==================== Session finished ====================')
             break
 
 main()
